@@ -3,44 +3,49 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Calculadora de Producción & Orden de Compra</title>
-  <!-- Tailwind CSS & jsPDF + AutoTable -->
+  <title>Calculadora de Producción & Materias Primas</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 </head>
-<body class="bg-slate-50 text-slate-800 p-6 min-h-screen">
-  <div class="max-w-5xl mx-auto space-y-6">
+<body class="bg-slate-50 text-slate-800 p-4 md:p-8 min-h-screen">
+  <div class="max-w-6xl mx-auto space-y-6">
 
     <!-- Header -->
-    <header class="bg-white rounded-xl shadow-sm p-6 border border-slate-200 flex justify-between items-center">
+    <header class="bg-white rounded-xl shadow-sm p-6 border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
       <div>
         <h1 class="text-2xl font-bold text-amber-900">Calculadora de Producción</h1>
-        <p class="text-slate-500 text-sm">Planificación de moldes y consolidado de compras</p>
+        <p class="text-slate-500 text-sm">Planificación de masa por moldes y consolidado de compras</p>
       </div>
-      <button id="btnExportPdf" class="bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg shadow transition flex items-center gap-2">
-        <span>📄</span> Exportar PDF
+      <button id="btnExportPdf" class="bg-amber-800 hover:bg-amber-900 text-white font-medium px-4 py-2 rounded-lg shadow transition flex items-center gap-2">
+        <span>📄</span> Exportar Orden de Compra (PDF)
       </button>
     </header>
 
     <!-- Paso 1: Orden de Producción -->
     <section class="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
-      <h2 class="text-lg font-semibold text-slate-700 mb-4">1. Orden de Producción (Cantidades por Molde)</h2>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-slate-700">1. Planificación de Moldes por Receta</h2>
+        <span class="text-xs bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1 rounded-full font-medium">
+          Margen de merma: 3%
+        </span>
+      </div>
       <div class="overflow-x-auto">
-        <table class="w-full text-left text-sm">
-          <thead class="bg-amber-100/50 text-amber-950 font-semibold border-b border-amber-200">
+        <table class="w-full text-left text-sm border-collapse">
+          <thead class="bg-amber-50 text-amber-950 font-semibold border-b border-amber-200">
             <tr>
               <th class="p-3">Receta</th>
               <th class="p-3 text-center">Molde 6"</th>
               <th class="p-3 text-center">Molde 7"</th>
               <th class="p-3 text-center">Molde 8"</th>
               <th class="p-3 text-center">Molde 9"</th>
-              <th class="p-3 text-right">Masa Req. (kg)</th>
-              <th class="p-3 text-right">Factor Escala</th>
+              <th class="p-3 text-right">Masa Neta (kg)</th>
+              <th class="p-3 text-right">Masa Total Req. (kg)</th>
+              <th class="p-3 text-right">Factor de Escala</th>
             </tr>
           </thead>
           <tbody id="productionTableBody" class="divide-y divide-slate-100">
-            <!-- Filas dinámicas -->
+            <!-- Filas dinámicas generadas por JS -->
           </tbody>
         </table>
       </div>
@@ -48,14 +53,17 @@
 
     <!-- Paso 2: Consolidado de Materias Primas -->
     <section class="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-lg font-semibold text-slate-700">2. Consolidado de Materias Primas</h2>
-        <span class="text-xs bg-red-100 text-red-700 font-semibold px-2.5 py-1 rounded-full">
-          Resaltado en rojo = Faltante por comprar
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 mb-4">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-700">2. Consolidado de Materias Primas Requeridas</h2>
+          <p class="text-xs text-slate-500">Calculado a partir del factor de escala de cada receta en producción</p>
+        </div>
+        <span class="text-xs bg-red-100 text-red-700 font-semibold px-3 py-1 rounded-full">
+          Fondo rojo = Stock insuficiente (Requiere compra)
         </span>
       </div>
       <div class="overflow-x-auto">
-        <table class="w-full text-left text-sm">
+        <table class="w-full text-left text-sm border-collapse">
           <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
             <tr>
               <th class="p-3">Materia Prima</th>
@@ -66,7 +74,7 @@
             </tr>
           </thead>
           <tbody id="consolidatedTableBody" class="divide-y divide-slate-100">
-            <!-- Filas dinámicas -->
+            <!-- Filas dinámicas generadas por JS -->
           </tbody>
         </table>
       </div>
@@ -74,49 +82,99 @@
   </div>
 
   <script>
-    // Datos base basados en tus recetas
+    // Recetas exactas extraídas de la hoja 'Recetas Base' del archivo Excel
     const RECETAS = {
       "CHOCOLATE AVENA TRIPLE CHOCOLATE": {
         rendimientoBase: 5.38,
         merma: 0.03,
-        pesosMoldes: { 6: 0.60, 7: 0.90, 8: 1.25, 9: 1.65 },
+        pesosMoldes: { 6: 0.30, 7: 0.35, 8: 0.45, 9: 0.604 },
         insumos: [
-          { nombre: "Avena Molida", unidad: "kg", base: 1.20 },
-          { nombre: "Cacao en Polvo", unidad: "kg", base: 0.45 },
-          { nombre: "Huevos", unidad: "und", base: 24 },
-          { nombre: "Aceite de Coco", unidad: "ml", base: 500 },
-          { nombre: "Endulzante / Miel", unidad: "kg", base: 0.60 },
-          { nombre: "Chips de Chocolate", unidad: "kg", base: 0.50 }
+          { nombre: "ACEITE DE CANOLA WESSON", unidad: "LT", base: 0.726 },
+          { nombre: "BADIA CANELA EN POLVO", unidad: "KG", base: 0.004 },
+          { nombre: "BICARBONATO DE SODIO", unidad: "KG", base: 0.033 },
+          { nombre: "CACAO EN POLVO 11% ALCALINAJE", unidad: "KG", base: 0.33 },
+          { nombre: "CREMA DE AVENA (HARINA DE AVENA) SANSON", unidad: "KG", base: 0.825 },
+          { nombre: "ENDULZANTE ESTEVIA", unidad: "KG", base: 0.215 },
+          { nombre: "EXTRACTO VAINILLA NEGRA", unidad: "LT", base: 0.033 },
+          { nombre: "HUEVOS GRANDES", unidad: "UNIDAD", base: 16.0 },
+          { nombre: "LECHE DE COCO LITRO NATURALLY", unidad: "LT", base: 1.815 },
+          { nombre: "MASCABADO (RASPADURA)", unidad: "KG", base: 0.182 },
+          { nombre: "POLVO DE HORNEAR LEVAPAN", unidad: "KG", base: 0.017 },
+          { nombre: "SAL DEL HIMALAYA FUMAGE", unidad: "KG", base: 0.010 },
+          { nombre: "VERMONT VILLAGE VINAGRE MANZANA ORG", unidad: "LT", base: 0.033 }
         ]
       },
       "ZANAHORIA AVENA": {
-        rendimientoBase: 4.80,
+        rendimientoBase: 5.42,
         merma: 0.03,
-        pesosMoldes: { 6: 0.55, 7: 0.85, 8: 1.15, 9: 1.50 },
+        pesosMoldes: { 6: 0.30, 7: 0.35, 8: 0.48, 9: 0.605 },
         insumos: [
-          { nombre: "Avena Molida", unidad: "kg", base: 1.10 },
-          { nombre: "Zanahoria Rallada", unidad: "kg", base: 1.30 },
-          { nombre: "Huevos", unidad: "und", base: 20 },
-          { nombre: "Aceite de Coco", unidad: "ml", base: 450 },
-          { nombre: "Nueces Picadas", unidad: "kg", base: 0.35 }
+          { nombre: "ACEITE DE CANOLA WESSON", unidad: "LT", base: 0.743 },
+          { nombre: "BADIA CANELA EN POLVO 16 OZ / 453.6 G", unidad: "KG", base: 0.040 },
+          { nombre: "BADIA NUEZ MOZCADA EN POLVO 16 OZ / 453.6 G", unidad: "KG", base: 0.020 },
+          { nombre: "BICARBONATO DE SODIO 454GR", unidad: "KG", base: 0.030 },
+          { nombre: "CREMA DE AVENA (HARINA DE AVENA) SANSON 250GR", unidad: "KG", base: 0.825 },
+          { nombre: "ENDULZANTE ESTEVIA 500 UND / 1G MEMBERS SELECTION 1.6 OZ (500G)", unidad: "KG", base: 0.158 },
+          { nombre: "EXTRACTO VAINILLA NEGRA 720ML", unidad: "LT", base: 0.040 },
+          { nombre: "HUEVOS GRANDES (360 UNID) (60GR CADA UNO)", unidad: "UNIDAD", base: 16.0 },
+          { nombre: "LECHE DE ALMENDRAS NATURALLY 32 FL OZ / 946 ML (12 U/CJA)", unidad: "LT", base: 0.330 },
+          { nombre: "MARIANI UVAS PASAS ORGÁNICAS DE CALIFORNIA 907 G / 32 OZ", unidad: "KG", base: 0.198 },
+          { nombre: "MASCABADO (RASPADURA)", unidad: "KG", base: 0.158 },
+          { nombre: "NUECES NOGAL SIN CÁSCARAS EN MITADES 1.13 KG / 40 OZ MEMBERS SELECTION", unidad: "KG", base: 0.198 },
+          { nombre: "POLVO DE HORNEAR LEVAPAN 2.2 KG 4UNID/CJ", unidad: "KG", base: 0.030 },
+          { nombre: "ZANAHORIA LIMPIA PROCESADA", unidad: "KG", base: 1.650 }
         ]
       }
     };
 
-    // Estado de la producción
+    // Estado reactivo
     const state = {
-      "CHOCOLATE AVENA TRIPLE CHOCOLATE": { 6: 0, 7: 0, 8: 0, 9: 0 },
-      "ZANAHORIA AVENA": { 6: 0, 7: 0, 8: 0, 9: 0 },
+      production: {
+        "CHOCOLATE AVENA TRIPLE CHOCOLATE": { 6: 0, 7: 0, 8: 0, 9: 0 },
+        "ZANAHORIA AVENA": { 6: 0, 7: 0, 8: 0, 9: 0 }
+      },
       stock: {}
     };
 
-    function renderProductionTable() {
+    function initProductionTable() {
       const tbody = document.getElementById("productionTableBody");
       tbody.innerHTML = "";
 
-      Object.keys(RECETAS).forEach(recetaNombre => {
-        const config = RECETAS[recetaNombre];
-        const moldes = state[recetaNombre];
+      Object.keys(RECETAS).forEach((receta, idx) => {
+        const tr = document.createElement("tr");
+        tr.id = `receta-row-${idx}`;
+        tr.innerHTML = `
+          <td class="p-3 font-semibold text-slate-900">${receta}</td>
+          ${[6, 7, 8, 9].map(m => `
+            <td class="p-2 text-center">
+              <input type="number" min="0" value="" placeholder="0"
+                class="w-16 border rounded p-1.5 text-center font-medium focus:ring-2 focus:ring-amber-500 bg-white"
+                data-receta="${receta}" data-molde="${m}" />
+            </td>
+          `).join('')}
+          <td class="p-3 text-right font-medium text-slate-700 cell-masa-neta">0.000</td>
+          <td class="p-3 text-right font-bold text-slate-900 cell-masa-total">0.000</td>
+          <td class="p-3 text-right font-bold text-amber-700 cell-factor">0.0000</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Event listener unificado sin recargar toda la tabla para no perder el foco
+      tbody.querySelectorAll("input").forEach(input => {
+        input.addEventListener("input", (e) => {
+          const rec = e.target.dataset.receta;
+          const mol = parseInt(e.target.dataset.molde, 10);
+          state.production[rec][mol] = Math.max(0, parseInt(e.target.value, 10) || 0);
+          updateCalculations();
+        });
+      });
+    }
+
+    function updateCalculations() {
+      // 1. Actualizar filas de producción
+      Object.keys(RECETAS).forEach((receta, idx) => {
+        const config = RECETAS[receta];
+        const moldes = state.production[receta];
 
         const masaNeta = (moldes[6] * config.pesosMoldes[6]) +
                          (moldes[7] * config.pesosMoldes[7]) +
@@ -126,138 +184,150 @@
         const masaTotal = masaNeta * (1 + config.merma);
         const factorEscala = config.rendimientoBase > 0 ? (masaTotal / config.rendimientoBase) : 0;
 
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td class="p-3 font-medium text-slate-900">${recetaNombre}</td>
-          ${[6, 7, 8, 9].map(m => `
-            <td class="p-2 text-center">
-              <input type="number" min="0" value="${moldes[m] || ''}" placeholder="0"
-                class="w-16 border rounded p-1 text-center font-medium focus:ring-2 focus:ring-amber-500"
-                onchange="updateMolde('${recetaNombre}', ${m}, this.value)" />
-            </td>
-          `).join('')}
-          <td class="p-3 text-right font-semibold text-slate-800">${masaTotal.toFixed(2)}</td>
-          <td class="p-3 text-right font-semibold text-amber-700">${factorEscala.toFixed(3)}</td>
-        `;
-        tbody.appendChild(row);
+        const row = document.getElementById(`receta-row-${idx}`);
+        row.querySelector(".cell-masa-neta").textContent = masaNeta.toFixed(3);
+        row.querySelector(".cell-masa-total").textContent = masaTotal.toFixed(3);
+        row.querySelector(".cell-factor").textContent = factorEscala.toFixed(4);
       });
 
+      // 2. Actualizar consolidado
       renderConsolidatedTable();
-    }
-
-    function updateMolde(receta, molde, value) {
-      state[receta][molde] = parseInt(value, 10) || 0;
-      renderProductionTable();
     }
 
     function calculateConsolidated() {
       const itemsMap = {};
 
+      // Inicializar con todos los insumos únicos (exacto a la fórmula SORT(UNIQUE(...)) de Excel)
+      Object.values(RECETAS).forEach(rec => {
+        rec.insumos.forEach(ins => {
+          if (!itemsMap[ins.nombre]) {
+            itemsMap[ins.nombre] = { nombre: ins.nombre, unidad: ins.unidad, totalReq: 0 };
+          }
+        });
+      });
+
+      // Sumar consumos escalados
       Object.keys(RECETAS).forEach(recetaNombre => {
         const config = RECETAS[recetaNombre];
-        const moldes = state[recetaNombre];
+        const moldes = state.production[recetaNombre];
 
         const masaNeta = (moldes[6] * config.pesosMoldes[6]) +
                          (moldes[7] * config.pesosMoldes[7]) +
                          (moldes[8] * config.pesosMoldes[8]) +
                          (moldes[9] * config.pesosMoldes[9]);
         const masaTotal = masaNeta * (1 + config.merma);
-        const factorEscala = config.rendimientoBase > 0 ? (masaTotal / config.rendimientoBase) : 0;
+        const factor = config.rendimientoBase > 0 ? (masaTotal / config.rendimientoBase) : 0;
 
-        config.insumos.forEach(insumo => {
-          if (!itemsMap[insumo.nombre]) {
-            itemsMap[insumo.nombre] = { nombre: insumo.nombre, unidad: insumo.unidad, totalReq: 0 };
-          }
-          itemsMap[insumo.nombre].totalReq += insumo.base * factorEscala;
+        config.insumos.forEach(ins => {
+          itemsMap[ins.nombre].totalReq += ins.base * factor;
         });
       });
 
-      return itemsMap;
+      // Ordenar alfabéticamente como la hoja de Excel
+      return Object.values(itemsMap).sort((a, b) => a.nombre.localeCompare(b.nombre));
     }
 
     function renderConsolidatedTable() {
       const tbody = document.getElementById("consolidatedTableBody");
-      tbody.innerHTML = "";
       const consolidated = calculateConsolidated();
 
-      Object.values(consolidated).forEach(item => {
+      // Guardar el input activo para preservar el foco si se está escribiendo stock
+      const activeEl = document.activeElement;
+      const activeStockName = activeEl && activeEl.dataset ? activeEl.dataset.stockName : null;
+
+      tbody.innerHTML = "";
+
+      consolidated.forEach(item => {
         const stockActual = state.stock[item.nombre] || 0;
         const faltante = Math.max(0, item.totalReq - stockActual);
-        const isFaltante = faltante > 0;
+        const isFaltante = faltante > 0.0001;
 
         const row = document.createElement("tr");
         if (isFaltante) {
-          row.className = "bg-red-50 text-red-900 font-medium";
+          row.className = "bg-red-50 text-red-950 font-medium";
         }
 
         row.innerHTML = `
           <td class="p-3">${item.nombre}</td>
-          <td class="p-3 text-center">${item.unidad}</td>
-          <td class="p-3 text-right">${item.totalReq.toFixed(2)}</td>
+          <td class="p-3 text-center font-mono text-xs text-slate-500">${item.unidad}</td>
+          <td class="p-3 text-right font-mono font-semibold">${item.totalReq.toFixed(3)}</td>
           <td class="p-2 text-right">
-            <input type="number" step="0.1" min="0" value="${stockActual || ''}" placeholder="0"
-              class="w-20 border rounded p-1 text-right focus:ring-2 focus:ring-amber-500 bg-white"
-              onchange="updateStock('${item.nombre}', this.value)" />
+            <input type="number" step="0.001" min="0" value="${state.stock[item.nombre] !== undefined ? state.stock[item.nombre] : ''}" placeholder="0"
+              class="w-24 border rounded p-1.5 text-right font-mono focus:ring-2 focus:ring-amber-500 bg-white"
+              data-stock-name="${item.nombre}" />
           </td>
-          <td class="p-3 text-right ${isFaltante ? 'text-red-700 font-bold' : 'text-slate-500'}">
-            ${faltante.toFixed(2)}
+          <td class="p-3 text-right font-mono ${isFaltante ? 'text-red-700 font-bold' : 'text-slate-400'}">
+            ${faltante.toFixed(3)}
           </td>
         `;
         tbody.appendChild(row);
       });
+
+      // Listeners de stock en tiempo real
+      tbody.querySelectorAll("input[data-stock-name]").forEach(inp => {
+        inp.addEventListener("input", (e) => {
+          const val = e.target.value === "" ? 0 : parseFloat(e.target.value);
+          state.stock[e.target.dataset.stockName] = isNaN(val) ? 0 : val;
+          renderConsolidatedTable();
+        });
+      });
+
+      // Restaurar foco si aplica
+      if (activeStockName) {
+        const currentInput = tbody.querySelector(`input[data-stock-name="${activeStockName}"]`);
+        if (currentInput) currentInput.focus();
+      }
     }
 
-    function updateStock(nombre, val) {
-      state.stock[nombre] = parseFloat(val) || 0;
-      renderConsolidatedTable();
-    }
-
-    // Exportar a PDF
+    // Exportación a PDF con jsPDF + AutoTable
     document.getElementById("btnExportPdf").addEventListener("click", () => {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
       const consolidated = calculateConsolidated();
 
-      doc.setFontSize(18);
+      doc.setFontSize(16);
       doc.setTextColor(120, 53, 15);
-      doc.text("Orden de Compra - Materias Primas", 14, 20);
+      doc.text("Orden de Compra - Materias Primas Requeridas", 14, 18);
 
-      doc.setFontSize(10);
+      doc.setFontSize(9);
       doc.setTextColor(100);
-      doc.text(`Fecha: ${new Date().toLocaleDateString("es-ES")} | Calculadora de Producción`, 14, 28);
+      const hoy = new Date().toLocaleDateString("es-PA", { year: 'numeric', month: 'long', day: 'numeric' });
+      doc.text(`Generado el: ${hoy} | Sistema de Planificación de Producción`, 14, 25);
 
       const tableRows = [];
-      Object.values(consolidated).forEach(item => {
+      consolidated.forEach(item => {
         const stockActual = state.stock[item.nombre] || 0;
         const faltante = Math.max(0, item.totalReq - stockActual);
 
         tableRows.push([
           item.nombre,
           item.unidad,
-          item.totalReq.toFixed(2),
-          stockActual.toFixed(2),
-          faltante.toFixed(2)
+          item.totalReq.toFixed(3),
+          stockActual.toFixed(3),
+          faltante.toFixed(3)
         ]);
       });
 
       doc.autoTable({
-        startY: 34,
+        startY: 30,
         head: [['Materia Prima', 'Unidad', 'Cant. Requerida', 'Stock Actual', 'Faltante a Comprar']],
         body: tableRows,
         theme: 'striped',
-        headStyles: { fillColor: [180, 83, 9] },
-        styles: { fontSize: 9 },
+        headStyles: { fillColor: [146, 64, 14], halign: 'left' },
+        styles: { fontSize: 8, cellPadding: 2.5 },
         columnStyles: {
+          1: { halign: 'center' },
           2: { halign: 'right' },
           3: { halign: 'right' },
           4: { halign: 'right', fontStyle: 'bold' }
         }
       });
 
-      doc.save("orden_compra_materias_primas.pdf");
+      doc.save(`orden_compra_${new Date().toISOString().slice(0, 10)}.pdf`);
     });
 
-    renderProductionTable();
+    initProductionTable();
+    updateCalculations();
   </script>
 </body>
 </html>
