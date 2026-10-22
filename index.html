@@ -82,7 +82,7 @@
   </div>
 
   <script>
-    // Recetas exactas extraídas de la hoja 'Recetas Base' del archivo Excel
+    // Recetas exactas del archivo Excel
     const RECETAS = {
       "CHOCOLATE AVENA TRIPLE CHOCOLATE": {
         rendimientoBase: 5.38,
@@ -127,7 +127,6 @@
       }
     };
 
-    // Estado reactivo
     const state = {
       production: {
         "CHOCOLATE AVENA TRIPLE CHOCOLATE": { 6: 0, 7: 0, 8: 0, 9: 0 },
@@ -159,7 +158,6 @@
         tbody.appendChild(tr);
       });
 
-      // Event listener unificado sin recargar toda la tabla para no perder el foco
       tbody.querySelectorAll("input").forEach(input => {
         input.addEventListener("input", (e) => {
           const rec = e.target.dataset.receta;
@@ -171,7 +169,6 @@
     }
 
     function updateCalculations() {
-      // 1. Actualizar filas de producción
       Object.keys(RECETAS).forEach((receta, idx) => {
         const config = RECETAS[receta];
         const moldes = state.production[receta];
@@ -190,14 +187,12 @@
         row.querySelector(".cell-factor").textContent = factorEscala.toFixed(4);
       });
 
-      // 2. Actualizar consolidado
       renderConsolidatedTable();
     }
 
     function calculateConsolidated() {
       const itemsMap = {};
 
-      // Inicializar con todos los insumos únicos (exacto a la fórmula SORT(UNIQUE(...)) de Excel)
       Object.values(RECETAS).forEach(rec => {
         rec.insumos.forEach(ins => {
           if (!itemsMap[ins.nombre]) {
@@ -206,7 +201,6 @@
         });
       });
 
-      // Sumar consumos escalados
       Object.keys(RECETAS).forEach(recetaNombre => {
         const config = RECETAS[recetaNombre];
         const moldes = state.production[recetaNombre];
@@ -223,7 +217,6 @@
         });
       });
 
-      // Ordenar alfabéticamente como la hoja de Excel
       return Object.values(itemsMap).sort((a, b) => a.nombre.localeCompare(b.nombre));
     }
 
@@ -231,7 +224,6 @@
       const tbody = document.getElementById("consolidatedTableBody");
       const consolidated = calculateConsolidated();
 
-      // Guardar el input activo para preservar el foco si se está escribiendo stock
       const activeEl = document.activeElement;
       const activeStockName = activeEl && activeEl.dataset ? activeEl.dataset.stockName : null;
 
@@ -263,7 +255,6 @@
         tbody.appendChild(row);
       });
 
-      // Listeners de stock en tiempo real
       tbody.querySelectorAll("input[data-stock-name]").forEach(inp => {
         inp.addEventListener("input", (e) => {
           const val = e.target.value === "" ? 0 : parseFloat(e.target.value);
@@ -272,18 +263,25 @@
         });
       });
 
-      // Restaurar foco si aplica
       if (activeStockName) {
         const currentInput = tbody.querySelector(`input[data-stock-name="${activeStockName}"]`);
         if (currentInput) currentInput.focus();
       }
     }
 
-    // Exportación a PDF con jsPDF + AutoTable
+    // Exportación a PDF: Exclusivamente insumos requeridos en la orden actual (> 0)
     document.getElementById("btnExportPdf").addEventListener("click", () => {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
       const consolidated = calculateConsolidated();
+
+      // Filtrado estricto: solo materias primas con requerimiento mayor a 0
+      const insumosNecesarios = consolidated.filter(item => item.totalReq > 0.0001);
+
+      if (insumosNecesarios.length === 0) {
+        alert("No hay materias primas requeridas. Ingresa al menos un molde en la orden de producción antes de exportar.");
+        return;
+      }
 
       doc.setFontSize(16);
       doc.setTextColor(120, 53, 15);
@@ -292,10 +290,10 @@
       doc.setFontSize(9);
       doc.setTextColor(100);
       const hoy = new Date().toLocaleDateString("es-PA", { year: 'numeric', month: 'long', day: 'numeric' });
-      doc.text(`Generado el: ${hoy} | Sistema de Planificación de Producción`, 14, 25);
+      doc.text(`Generado el: ${hoy} | Materias primas calculadas según producción programada`, 14, 25);
 
       const tableRows = [];
-      consolidated.forEach(item => {
+      insumosNecesarios.forEach(item => {
         const stockActual = state.stock[item.nombre] || 0;
         const faltante = Math.max(0, item.totalReq - stockActual);
 
